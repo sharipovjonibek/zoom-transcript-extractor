@@ -9,7 +9,7 @@ def build_short_summary_prompt(transcript_text: str) -> str:
             - Ignore filler words such as "um", "yeah", "you know", etc.
             - Do not invent information that is not mentioned.
             - Keep the summary concise and easy to read.
-            - Return plain text only (no markdown symbols like #, ##, **).
+            - Return plain text only (no markdown symbols like #, ##, *,**).
 
             Structure the output like this:
 
