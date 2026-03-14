@@ -20,7 +20,7 @@ This tool helps teams quickly understand discussions, identify action items, and
 
 ---
 
-# Example Workflow
+# Example [Workflow](https://wise-shake-264.notion.site/Zoom-Transcript-Extractor-Bot-32295fdf11748043b3d1dbadd59fcb83?source=copy_link)
 
 1. User uploads a Zoom transcript `.txt` file.
 2. Bot detects speakers in the meeting.
