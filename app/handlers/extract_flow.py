@@ -11,6 +11,7 @@ from app.config import settings
 from aiogram import F
 from aiogram.types import ReplyKeyboardRemove
 from app.keyboards.cancel_keyboard import cancel_keyboard
+from app.keyboards.main_menu_keyboard import get_main_menu_keyboard
 from app.keyboards.speaker_keyboard import build_speaker_keyboard
 from app.parsers.zoom_parser import TranscriptSegment
 from app.services.extraction_service import extract_transcript
@@ -79,7 +80,7 @@ async def cancel_flow(message: Message, state: FSMContext) -> None:
     await message.answer(
         "❌ Current flow cancelled.\n\n"
         "Send another .txt file whenever you're ready to process a new transcript.",
-        reply_markup=ReplyKeyboardRemove()
+        reply_markup=get_main_menu_keyboard()
     )
 
 
@@ -91,7 +92,7 @@ async def cancel_via_button(message: Message, state: FSMContext):
     await message.answer(
         "❌ Current process cancelled.\n\n"
         "Send another .txt file whenever you're ready to process a new transcript.",
-        reply_markup=ReplyKeyboardRemove()
+        reply_markup=get_main_menu_keyboard()
     )
 
 
@@ -303,7 +304,7 @@ async def receive_end_time_and_process(message: Message, state: FSMContext) -> N
             f"📊 Segments found: {result.segment_count}\n"
             f"⏱ Start filter: {start_time or 'not set'}\n"
             f"⏱ End filter: {end_time or 'not set'}",
-            reply_markup=ReplyKeyboardRemove()
+            reply_markup=get_main_menu_keyboard()
         )
 
         await message.answer_document(
@@ -353,7 +354,8 @@ async def generate_summary_on_approval(callback: CallbackQuery, state: FSMContex
 
             await callback.message.answer(
                 "✅ Summary is ready.\n\n"
-                "Send another .txt file whenever you want to process a new transcript."
+                "Send another .txt file whenever you want to process a new transcript.",
+                reply_markup=get_main_menu_keyboard()
             )
 
     except Exception as exc:
@@ -376,7 +378,8 @@ async def skip_summary(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.message.edit_reply_markup(reply_markup=None)
         await callback.message.answer(
             "👍 Okay, summary skipped.\n\n"
-            "Send another .txt file whenever you want to process a new transcript."
+            "Send another .txt file whenever you want to process a new transcript.",
+            reply_markup=get_main_menu_keyboard()
         )
 
     await cleanup_state_files(state)

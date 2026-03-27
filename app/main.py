@@ -6,10 +6,11 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from app.config import settings
 from app.db import close_db, init_db
+from app.handlers.extract_flow import router as extract_flow_router
+from app.handlers.prompt_library import router as prompt_library_router
 from app.handlers.start import router as start_router
 from app.handlers.upload import router as upload_router
-from app.handlers.extract_flow import router as extract_flow_router
-from app.services.file_service import ensure_storage_dirs, cleanup_old_temp_files
+from app.services.file_service import cleanup_old_temp_files, ensure_storage_dirs
 from app.services.user_service import init_user_table
 
 
@@ -35,6 +36,7 @@ async def main() -> None:
     dp = Dispatcher(storage=MemoryStorage())
 
     dp.include_router(start_router)
+    dp.include_router(prompt_library_router)
     dp.include_router(upload_router)
     dp.include_router(extract_flow_router)
 
