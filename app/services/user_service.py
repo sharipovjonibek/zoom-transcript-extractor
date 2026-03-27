@@ -36,12 +36,17 @@ DO UPDATE SET
 """
 
 
+GET_ALL_BOT_USER_IDS_SQL = """
+SELECT telegram_user_id
+FROM bot_users
+ORDER BY first_seen_at;
+"""
+
 
 async def init_user_table() -> None:
     pool = get_db_pool()
     async with pool.acquire() as conn:
         await conn.execute(CREATE_BOT_USERS_TABLE_SQL)
-
 
 
 async def track_user_request(user: User) -> None:
@@ -55,3 +60,12 @@ async def track_user_request(user: User) -> None:
             user.first_name,
             user.last_name,
         )
+
+
+async def get_all_user_ids() -> list[int]:
+    pool = get_db_pool()
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(GET_ALL_BOT_USER_IDS_SQL)
+
+    return [row["telegram_user_id"] for row in rows]

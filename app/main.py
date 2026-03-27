@@ -12,6 +12,7 @@ from app.handlers.start import router as start_router
 from app.handlers.upload import router as upload_router
 from app.services.file_service import cleanup_old_temp_files, ensure_storage_dirs
 from app.services.user_service import init_user_table
+from app.handlers.admin import router as admin_router
 
 
 async def main() -> None:
@@ -34,11 +35,12 @@ async def main() -> None:
 
     bot = Bot(token=settings.bot_token)
     dp = Dispatcher(storage=MemoryStorage())
-
+    dp.include_router(admin_router)
     dp.include_router(start_router)
     dp.include_router(prompt_library_router)
     dp.include_router(upload_router)
     dp.include_router(extract_flow_router)
+    
 
     try:
         await dp.start_polling(bot)
