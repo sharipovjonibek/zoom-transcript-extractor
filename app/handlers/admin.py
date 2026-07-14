@@ -2,16 +2,15 @@ from aiogram import Router
 from aiogram.types import Message
 from aiogram.filters import Command
 
+from app.config import settings
 from app.services.broadcast_service import broadcast_update
 
 router = Router()
 
-ADMIN_ID = 6371353927  
-
 
 @router.message(Command("broadcast"))
 async def send_broadcast(message: Message, bot):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user is None or message.from_user.id != settings.admin_id:
         return
 
     success, failed = await broadcast_update(bot)

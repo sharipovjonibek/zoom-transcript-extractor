@@ -3,16 +3,26 @@ import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand
 
 from app.config import settings
 from app.db import close_db, init_db
 from app.handlers.extract_flow import router as extract_flow_router
-from app.handlers.prompt_library import router as prompt_library_router
 from app.handlers.start import router as start_router
 from app.handlers.upload import router as upload_router
 from app.services.file_service import cleanup_old_temp_files, ensure_storage_dirs
 from app.services.user_service import init_user_table
 from app.handlers.admin import router as admin_router
+
+
+async def setup_bot_commands(bot: Bot) -> None:
+    await bot.set_my_commands(
+        [
+            BotCommand(command="start", description="Open the main menu"),
+            BotCommand(command="help", description="Show how to use the bot"),
+            BotCommand(command="cancel", description="Cancel the current process"),
+        ]
+    )
 
 
 async def main() -> None:
@@ -34,10 +44,11 @@ async def main() -> None:
     await init_user_table()
 
     bot = Bot(token=settings.bot_token)
+    await setup_bot_commands(bot)
+
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(admin_router)
     dp.include_router(start_router)
-    dp.include_router(prompt_library_router)
     dp.include_router(upload_router)
     dp.include_router(extract_flow_router)
     

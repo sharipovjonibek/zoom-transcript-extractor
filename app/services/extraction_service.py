@@ -24,13 +24,13 @@ def extract_transcript(
     allowed = {speaker.casefold() for speaker in selected_speakers}
     filtered_segments: list[TranscriptSegment] = []
 
-    for segment in segments:
+    for index, segment in enumerate(segments):
         if segment.speaker.casefold() not in allowed:
             continue
 
         if not segment_overlaps_requested_range(
             segment_start=segment.start_time,
-            segment_end=segment.end_time,
+            segment_end=segment.end_time or next_known_start_time(segments, index),
             requested_start=start_time,
             requested_end=end_time,
         ):
@@ -59,3 +59,14 @@ def extract_transcript(
         segments=filtered_segments,
         transcript=transcript,
     )
+
+
+def next_known_start_time(
+    segments: list[TranscriptSegment],
+    current_index: int,
+) -> str | None:
+    for segment in segments[current_index + 1:]:
+        if segment.start_time:
+            return segment.start_time
+
+    return None

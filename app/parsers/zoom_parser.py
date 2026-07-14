@@ -30,13 +30,13 @@ RANGE_WITH_TEXT = re.compile(
     rf"^\[?(?P<start>{TIME_PATTERN})\]?\s*"
     rf"(?:-|–|—|->)\s*"
     rf"\[?(?P<end>{TIME_PATTERN})\]?\s+"
-    rf"(?P<speaker>[^:]{1,120})"
+    rf"(?P<speaker>[^:]{{1,120}})"
     rf":\s*(?P<text>.*)$"
 )
 
 TIME_SPEAKER_TEXT = re.compile(
     rf"^\[?(?P<start>{TIME_PATTERN})\]?\s+"
-    rf"(?P<speaker>[^:]{1,120})"
+    rf"(?P<speaker>[^:]{{1,120}})"
     rf":\s*(?P<text>.*)$"
 )
 
@@ -56,6 +56,38 @@ def normalize_speaker_name(name: str) -> str:
     return name
 
 
+def looks_like_speaker_name(name: str) -> bool:
+    name = normalize_speaker_name(name)
+    if not name:
+        return False
+
+    if any(mark in name for mark in "?!;") or name.endswith("."):
+        return False
+
+    words = re.findall(r"[A-Za-z0-9_@.'()-]+", name)
+    if not 1 <= len(words) <= 6:
+        return False
+
+    if words[0].casefold() in {"i", "we", "you", "they", "he", "she", "it"}:
+        return False
+
+    if len(words) <= 2:
+        return True
+
+    lowercase_words = sum(word.isalpha() and word.islower() for word in words)
+    if lowercase_words >= 2:
+        return False
+
+    title_like_words = sum(
+        bool(word[:1].isupper())
+        or word.isupper()
+        or any(char.isdigit() for char in word)
+        or any(char in word for char in "@_.()-")
+        for word in words
+    )
+    return title_like_words >= len(words) - 1
+
+
 def parse_zoom_transcript(raw_text: str) -> list[TranscriptSegment]:
     text = raw_text.replace("\ufeff", "")
     lines = text.splitlines()
@@ -70,11 +102,17 @@ def parse_zoom_transcript(raw_text: str) -> list[TranscriptSegment]:
 
         range_match = RANGE_WITH_TEXT.match(line)
         if range_match:
+            speaker = normalize_speaker_name(range_match.group("speaker"))
+            if not looks_like_speaker_name(speaker):
+                if current is not None:
+                    current.text = f"{current.text} {line}".strip()
+                continue
+
             if current and current.text.strip():
                 segments.append(current)
 
             current = TranscriptSegment(
-                speaker=normalize_speaker_name(range_match.group("speaker")),
+                speaker=speaker,
                 text=(range_match.group("text") or "").strip(),
                 start_time=range_match.group("start"),
                 end_time=range_match.group("end"),
@@ -83,11 +121,17 @@ def parse_zoom_transcript(raw_text: str) -> list[TranscriptSegment]:
 
         inline_match = TIME_SPEAKER_TEXT.match(line)
         if inline_match:
+            speaker = normalize_speaker_name(inline_match.group("speaker"))
+            if not looks_like_speaker_name(speaker):
+                if current is not None:
+                    current.text = f"{current.text} {line}".strip()
+                continue
+
             if current and current.text.strip():
                 segments.append(current)
 
             current = TranscriptSegment(
-                speaker=normalize_speaker_name(inline_match.group("speaker")),
+                speaker=speaker,
                 text=(inline_match.group("text") or "").strip(),
                 start_time=inline_match.group("start"),
                 end_time=None,
@@ -96,11 +140,17 @@ def parse_zoom_transcript(raw_text: str) -> list[TranscriptSegment]:
 
         speaker_time_header_match = SPEAKER_TIME_HEADER.match(line)
         if speaker_time_header_match:
+            speaker = normalize_speaker_name(speaker_time_header_match.group("speaker"))
+            if not looks_like_speaker_name(speaker):
+                if current is not None:
+                    current.text = f"{current.text} {line}".strip()
+                continue
+
             if current and current.text.strip():
                 segments.append(current)
 
             current = TranscriptSegment(
-                speaker=normalize_speaker_name(speaker_time_header_match.group("speaker")),
+                speaker=speaker,
                 text="",
                 start_time=speaker_time_header_match.group("start"),
                 end_time=None,
@@ -112,7 +162,7 @@ def parse_zoom_transcript(raw_text: str) -> list[TranscriptSegment]:
             possible_speaker = normalize_speaker_name(time_speaker_header_match.group("speaker"))
 
             # Avoid false positives like plain text lines that begin with a time but contain no real speaker.
-            if 1 <= len(possible_speaker.split()) <= 8:
+            if looks_like_speaker_name(possible_speaker):
                 if current and current.text.strip():
                     segments.append(current)
 

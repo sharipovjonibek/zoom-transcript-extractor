@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import Counter
+import logging
 import re
 
 from app.ai.prompts import build_detailed_summary_prompt, build_short_summary_prompt
@@ -12,6 +13,8 @@ try:
 except Exception:  # pragma: no cover
     genai = None  # type: ignore
 
+
+logger = logging.getLogger(__name__)
 
 STOPWORDS = {
     "about", "after", "again", "all", "also", "and", "are", "been", "before",
@@ -29,13 +32,53 @@ async def summarize_text(text: str, mode: str = "short") -> str:
     if not cleaned:
         return "No transcript content was available to summarize."
 
+    cleaned = limit_summary_input(cleaned, settings.max_summary_input_chars)
+
     if settings.gemini_api_key and genai is not None:
         try:
             return await llm_summary(cleaned, mode=mode)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Gemini summary failed; using local fallback: %s", exc)
+            return (
+                "Gemini summary unavailable; generated a basic local summary.\n\n"
+                f"{heuristic_summary(cleaned, mode=mode)}"
+            )
 
-    return heuristic_summary(cleaned, mode=mode)
+    if settings.gemini_api_key and genai is None:
+        logger.warning("Gemini API key is configured, but google-genai is unavailable.")
+        return (
+            "Gemini client unavailable; generated a basic local summary.\n\n"
+            f"{heuristic_summary(cleaned, mode=mode)}"
+        )
+
+    return (
+        "Gemini is not configured; generated a basic local summary.\n\n"
+        f"{heuristic_summary(cleaned, mode=mode)}"
+    )
+
+
+def limit_summary_input(text: str, max_chars: int) -> str:
+    text = text.strip()
+    if max_chars <= 0:
+        return ""
+
+    if len(text) <= max_chars:
+        return text
+
+    marker = "\n\n[Transcript truncated for summary: middle content omitted.]\n\n"
+    remaining_chars = max_chars - len(marker)
+
+    if remaining_chars < 100:
+        return text[:max_chars].rstrip()
+
+    head_chars = remaining_chars // 2
+    tail_chars = remaining_chars - head_chars
+
+    return (
+        f"{text[:head_chars].rstrip()}"
+        f"{marker}"
+        f"{text[-tail_chars:].lstrip()}"
+    )
 
 
 async def llm_summary(text: str, mode: str = "short") -> str:

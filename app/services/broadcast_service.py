@@ -1,23 +1,23 @@
 import asyncio
+import logging
+
 from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError
 
 from app.keyboards.main_menu_keyboard import get_main_menu_keyboard
 from app.services.user_service import get_all_user_ids
 
+logger = logging.getLogger(__name__)
+
 
 async def broadcast_update(bot: Bot):
     users = await get_all_user_ids()
 
     text = (
-        "🔥 New Feature: Prompt Library\n\n"
-        "I was going through our team Telegram groups and noticed that we often use prompts during work.\n"
-        "But when you need them, scrolling through chat history is not very convenient.\n\n"
-        "To solve this, I added a Prompt Library.\n"
-        "Now you can quickly find and use the prompts you need.\n\n"
-        "If you have useful prompts or any suggestions,\n"
-        "feel free to reach out to @calculus_hero 🙌\n\n"
-        "Try it now by pressing 👉 /start"
+        "📄 Zoom Transcript Extractor Bot\n\n"
+        "Upload a Zoom transcript .txt file and I can extract selected speakers, "
+        "apply optional time filters, generate a clean transcript, and create an AI summary.\n\n"
+        "Start by pressing 👉 /start"
     )
 
     success = 0
@@ -34,7 +34,8 @@ async def broadcast_update(bot: Bot):
             await asyncio.sleep(0.05)  # avoid rate limit
         except TelegramForbiddenError:
             failed += 1  # user blocked bot
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to broadcast to user %s: %s", user_id, exc)
             failed += 1
 
     return success, failed

@@ -1,6 +1,10 @@
+import logging
+
 from aiogram.types import User
 
 from app.db import get_db_pool
+
+logger = logging.getLogger(__name__)
 
 CREATE_BOT_USERS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS bot_users (
@@ -52,14 +56,17 @@ async def init_user_table() -> None:
 async def track_user_request(user: User) -> None:
     pool = get_db_pool()
 
-    async with pool.acquire() as conn:
-        await conn.execute(
-            UPSERT_BOT_USER_SQL,
-            user.id,
-            user.username,
-            user.first_name,
-            user.last_name,
-        )
+    try:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                UPSERT_BOT_USER_SQL,
+                user.id,
+                user.username,
+                user.first_name,
+                user.last_name,
+            )
+    except Exception as exc:
+        logger.warning("Failed to track user %s: %s", user.id, exc)
 
 
 async def get_all_user_ids() -> list[int]:

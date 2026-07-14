@@ -1,27 +1,27 @@
-from pathlib import Path
 import logging
 
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import BufferedInputFile, CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, Message, ReplyKeyboardRemove
 
 from app.config import settings
-from aiogram import F
-from aiogram.types import ReplyKeyboardRemove
-from app.keyboards.cancel_keyboard import cancel_keyboard
+from app.keyboards.cancel_keyboard import CANCEL_BUTTON, SKIP_BUTTON, cancel_keyboard, time_filter_keyboard
 from app.keyboards.main_menu_keyboard import get_main_menu_keyboard
 from app.keyboards.speaker_keyboard import build_speaker_keyboard
 from app.parsers.zoom_parser import TranscriptSegment
 from app.services.extraction_service import extract_transcript
-from app.services.file_service import delete_file, write_text_file
+from app.services.file_service import write_text_file
+from app.services.session_service import cleanup_state_files
 from app.services.summary_service import generate_summary
-from app.utils.time_utils import canonical_time, is_valid_time_format
 from app.keyboards.summary_keyboard import build_summary_keyboard
+from app.utils.time_utils import canonical_time, is_valid_time_format, is_valid_time_range
 
 router = Router()
 logger = logging.getLogger(__name__)
+
+TEXT_SKIP = "skip"
 
 
 class ExtractFlow(StatesGroup):
@@ -61,16 +61,12 @@ def split_long_text(text: str, max_len: int) -> list[str]:
     return chunks
 
 
-async def cleanup_state_files(state: FSMContext) -> None:
-    data = await state.get_data()
+def is_cancel_text(value: str) -> bool:
+    return value == CANCEL_BUTTON
 
-    file_path = data.get("file_path")
-    output_file_path = data.get("output_file_path")
 
-    if file_path:
-        delete_file(Path(file_path))
-    if output_file_path:
-        delete_file(Path(output_file_path))
+def is_skip_text(value: str) -> bool:
+    return value == SKIP_BUTTON or value.casefold() == TEXT_SKIP
 
 
 @router.message(Command("cancel"))
@@ -80,21 +76,20 @@ async def cancel_flow(message: Message, state: FSMContext) -> None:
     await message.answer(
         "❌ Current flow cancelled.\n\n"
         "Send another .txt file whenever you're ready to process a new transcript.",
-        reply_markup=get_main_menu_keyboard()
+        reply_markup=get_main_menu_keyboard(),
     )
 
 
 @router.message(F.text == "❌ Cancel")
-async def cancel_via_button(message: Message, state: FSMContext):
+async def cancel_via_button(message: Message, state: FSMContext) -> None:
     await cleanup_state_files(state)
     await state.clear()
 
     await message.answer(
         "❌ Current process cancelled.\n\n"
         "Send another .txt file whenever you're ready to process a new transcript.",
-        reply_markup=get_main_menu_keyboard()
+        reply_markup=get_main_menu_keyboard(),
     )
-
 
 
 @router.callback_query(
@@ -187,85 +182,103 @@ async def finish_speaker_selection(callback: CallbackQuery, state: FSMContext) -
 
     if callback.message:
         await callback.message.answer(
-        "✅ Speakers selected\n\n"
-        f"👥 Selected: {', '.join(selected_speakers)}\n\n"
-        "⏱ Send START time (optional)\n"
-        "Example: 12:30 or 13:30:45\n\n"
-        "Type 'skip' to continue without a start time.",
-        reply_markup=cancel_keyboard()
-    )
+            "✅ Speakers selected\n\n"
+            f"👥 Selected: {', '.join(selected_speakers)}\n\n"
+            "Step 2 of 3: optional time filter\n\n"
+            "Send the START time, or tap ⏭ Skip to start from the beginning.\n\n"
+            "Examples: 12:30, 01:13:45",
+            reply_markup=time_filter_keyboard(),
+        )
     await callback.answer()
+
+
+@router.message(ExtractFlow.waiting_for_speaker_selection)
+async def remind_speaker_selection(message: Message) -> None:
+    await message.answer(
+        "Please select speaker(s) using the buttons above, then tap ✅ Continue.",
+        reply_markup=cancel_keyboard(),
+    )
 
 
 @router.message(ExtractFlow.waiting_for_start_time)
 async def receive_start_time(message: Message, state: FSMContext) -> None:
     raw_value = (message.text or "").strip()
 
-    if raw_value == "❌ Cancel":
+    if is_cancel_text(raw_value):
         await cleanup_state_files(state)
         await state.clear()
         await message.answer(
             "❌ Current process cancelled.\n\n"
             "Send another .txt file whenever you're ready to process a new transcript.",
-            reply_markup=ReplyKeyboardRemove()
+            reply_markup=get_main_menu_keyboard(),
         )
         return
 
-    if raw_value.lower() == "skip":
+    if is_skip_text(raw_value):
         await state.update_data(start_time=None)
     else:
         if not is_valid_time_format(raw_value):
             await message.answer(
-                "Invalid START time format.\n"
-                "Use HH:MM or HH:MM:SS, or send skip."
+                "⚠️ Invalid START time.\n\n"
+                "Use HH:MM or HH:MM:SS, for example 12:30 or 01:13:45.\n"
+                "You can also tap ⏭ Skip.",
+                reply_markup=time_filter_keyboard(),
             )
             return
         await state.update_data(start_time=canonical_time(raw_value))
 
     await state.set_state(ExtractFlow.waiting_for_end_time)
     await message.answer(
-    "⏱ Send END time (optional)\n"
-    "Example: 12:30 or 13:30:45\n\n"
-    "Type 'skip' to continue without an end time.",
-    reply_markup=cancel_keyboard()
-)
+        "Now send the END time, or tap ⏭ Skip to continue to the end of the transcript.\n\n"
+        "Examples: 12:45, 01:25:00",
+        reply_markup=time_filter_keyboard(),
+    )
 
 
 @router.message(ExtractFlow.waiting_for_end_time)
 async def receive_end_time_and_process(message: Message, state: FSMContext) -> None:
     raw_value = (message.text or "").strip()
 
-    if raw_value == "❌ Cancel":
+    if is_cancel_text(raw_value):
         await cleanup_state_files(state)
         await state.clear()
         await message.answer(
             "❌ Current process cancelled.\n\n"
             "Send another .txt file whenever you're ready to process a new transcript.",
-            reply_markup=ReplyKeyboardRemove()
+            reply_markup=get_main_menu_keyboard(),
         )
         return
 
-
-    if raw_value.lower() == "skip":
+    if is_skip_text(raw_value):
         end_time = None
     else:
         if not is_valid_time_format(raw_value):
             await message.answer(
-                "Invalid END time format.\n"
-                "Use HH:MM or HH:MM:SS, or send skip.",
-                reply_markup=cancel_keyboard()
+                "⚠️ Invalid END time.\n\n"
+                "Use HH:MM or HH:MM:SS, for example 12:45 or 01:25:00.\n"
+                "You can also tap ⏭ Skip.",
+                reply_markup=time_filter_keyboard(),
             )
             return
         end_time = canonical_time(raw_value)
+
+    data = await state.get_data()
+    start_time = data.get("start_time")
+    if not is_valid_time_range(start_time, end_time):
+        await message.answer(
+            "⚠️ Invalid time range.\n\n"
+            "END time must be the same as or later than START time.",
+            reply_markup=time_filter_keyboard(),
+        )
+        return
 
     await state.update_data(end_time=end_time)
     data = await state.get_data()
 
     selected_speakers = data["selected_speakers"]
-    start_time = data.get("start_time")
     segments = [TranscriptSegment.from_dict(item) for item in data["segments"]]
 
-    await message.answer("Processing transcript...")
+    await message.answer("⏳ Processing transcript...")
 
     try:
         result = extract_transcript(
@@ -279,7 +292,9 @@ async def receive_end_time_and_process(message: Message, state: FSMContext) -> N
             await cleanup_state_files(state)
             await state.clear()
             await message.answer(
-                "No matching transcript segments were found for those filters."
+                "No matching transcript segments were found for those filters.\n\n"
+                "Try a wider time range or select a different speaker.",
+                reply_markup=get_main_menu_keyboard(),
             )
             return
 
@@ -288,7 +303,7 @@ async def receive_end_time_and_process(message: Message, state: FSMContext) -> N
             prefix="clean_transcript_",
             suffix=".txt",
         )
-        
+
         await state.update_data(
             output_file_path=str(output_path),
             final_transcript=result.transcript,
@@ -299,12 +314,12 @@ async def receive_end_time_and_process(message: Message, state: FSMContext) -> N
         )
 
         await message.answer(
-            "🎉 Extraction complete!\n\n"
+            "✅ Extraction complete\n\n"
             f"👤 Speaker(s): {', '.join(result.speakers)}\n"
             f"📊 Segments found: {result.segment_count}\n"
             f"⏱ Start filter: {start_time or 'not set'}\n"
             f"⏱ End filter: {end_time or 'not set'}",
-            reply_markup=get_main_menu_keyboard()
+            reply_markup=ReplyKeyboardRemove(),
         )
 
         await message.answer_document(
@@ -318,16 +333,19 @@ async def receive_end_time_and_process(message: Message, state: FSMContext) -> N
         await state.set_state(ExtractFlow.waiting_for_summary_decision)
 
         await message.answer(
-            "Would you like an AI summary for this transcript?",
+            "Step 3 of 3: would you like an AI summary for this cleaned transcript?",
             reply_markup=build_summary_keyboard(),
         )
-
 
     except Exception as exc:
         logger.exception("Extraction flow failed: %s", exc)
         await cleanup_state_files(state)
         await state.clear()
-        await message.answer("Something went wrong during extraction.")
+        await message.answer(
+            "⚠️ Something went wrong during extraction.\n\n"
+            "Please try again with another transcript file.",
+            reply_markup=get_main_menu_keyboard(),
+        )
 
 
 @router.callback_query(
@@ -340,7 +358,7 @@ async def generate_summary_on_approval(callback: CallbackQuery, state: FSMContex
 
     if callback.message:
         await callback.message.edit_reply_markup(reply_markup=None)
-        await callback.message.answer("🧠 Generating summary...")
+        await callback.message.answer("🧠 Generating summary. This may take a moment...")
 
     try:
         summary = await generate_summary(transcript_text, mode="short")
@@ -353,15 +371,18 @@ async def generate_summary_on_approval(callback: CallbackQuery, state: FSMContex
                 await callback.message.answer(chunk)
 
             await callback.message.answer(
-                "✅ Summary is ready.\n\n"
-                "Send another .txt file whenever you want to process a new transcript.",
-                reply_markup=get_main_menu_keyboard()
+                "✅ Done. You can upload another transcript whenever you are ready.",
+                reply_markup=get_main_menu_keyboard(),
             )
 
     except Exception as exc:
         logger.exception("Summary generation failed: %s", exc)
         if callback.message:
-            await callback.message.answer("⚠️ Failed to generate summary.")
+            await callback.message.answer(
+                "⚠️ Failed to generate summary.\n\n"
+                "The cleaned transcript file was already sent above.",
+                reply_markup=get_main_menu_keyboard(),
+            )
 
     finally:
         await cleanup_state_files(state)
@@ -377,11 +398,19 @@ async def skip_summary(callback: CallbackQuery, state: FSMContext) -> None:
     if callback.message:
         await callback.message.edit_reply_markup(reply_markup=None)
         await callback.message.answer(
-            "👍 Okay, summary skipped.\n\n"
-            "Send another .txt file whenever you want to process a new transcript.",
-            reply_markup=get_main_menu_keyboard()
+            "✅ Done. Summary skipped.\n\n"
+            "You can upload another transcript whenever you are ready.",
+            reply_markup=get_main_menu_keyboard(),
         )
 
     await cleanup_state_files(state)
     await state.clear()
     await callback.answer()
+
+
+@router.message(ExtractFlow.waiting_for_summary_decision)
+async def remind_summary_decision(message: Message) -> None:
+    await message.answer(
+        "Please choose one of the summary options above.",
+        reply_markup=ReplyKeyboardRemove(),
+    )

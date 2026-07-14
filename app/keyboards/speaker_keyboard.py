@@ -13,7 +13,7 @@ def build_speaker_keyboard(
         label = f"✅ {speaker}" if index in selected_set else f"👤 {speaker}"
         builder.button(text=label, callback_data=f"speaker:{index}")
 
-    builder.button(text="✅ Done", callback_data="speaker_done")
+    builder.button(text="✅ Continue", callback_data="speaker_done")
     builder.button(text="🔄 Reset", callback_data="speaker_reset")
 
     layout = [1] * len(speakers) + [2]

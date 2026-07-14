@@ -4,15 +4,14 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
+from app.config import settings
 from app.handlers.extract_flow import ExtractFlow
+from app.keyboards.cancel_keyboard import cancel_keyboard
 from app.keyboards.speaker_keyboard import build_speaker_keyboard
 from app.parsers.zoom_parser import extract_speaker_names, parse_zoom_transcript
 from app.services.file_service import delete_file, download_user_file, read_text_file
-from app.keyboards.cancel_keyboard import cancel_keyboard
-from pathlib import Path
+from app.services.session_service import cleanup_state_files
 from app.services.user_service import track_user_request
-
-
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -20,25 +19,38 @@ logger = logging.getLogger(__name__)
 
 @router.message(F.document)
 async def handle_transcript_upload(message: Message, state: FSMContext) -> None:
-
     if message.from_user:
         await track_user_request(message.from_user)
 
-
     current_state = await state.get_state()
     if current_state is not None:
-        await cleanup_previous_flow(state)
+        await cleanup_state_files(state)
+        await state.clear()
 
     document = message.document
 
     if document is None:
-        await message.answer("Please send a valid .txt file.")
+        await message.answer("Please upload a Zoom transcript file in `.txt` format.", parse_mode="Markdown")
         return
 
     file_name = (document.file_name or "").lower()
     if not file_name.endswith(".txt"):
-        await message.answer("Please upload a valid Zoom transcript .txt file.")
+        await message.answer(
+            "⚠️ I can only process Zoom transcript files in `.txt` format.\n\n"
+            "Please export or download the transcript as a `.txt` file and upload it here.",
+            parse_mode="Markdown",
+        )
         return
+
+    if document.file_size and document.file_size > settings.max_upload_bytes:
+        limit_mb = settings.max_upload_bytes / (1024 * 1024)
+        await message.answer(
+            "⚠️ This transcript is too large to process safely.\n\n"
+            f"Current upload limit: {limit_mb:.1f} MB."
+        )
+        return
+
+    await message.answer("📥 File received. Reading transcript and detecting speakers...")
 
     saved_path = await download_user_file(message.bot, document)
 
@@ -50,8 +62,9 @@ async def handle_transcript_upload(message: Message, state: FSMContext) -> None:
         if not segments or not speakers:
             delete_file(saved_path)
             await message.answer(
-                "I could not detect speakers in this file. "
-                "Please upload a valid Zoom transcript .txt file."
+                "⚠️ I could not detect speakers in this file.\n\n"
+                "Please upload a Zoom transcript `.txt` file that includes speaker names and timestamps.",
+                parse_mode="Markdown",
             )
             return
 
@@ -74,36 +87,22 @@ async def handle_transcript_upload(message: Message, state: FSMContext) -> None:
             speaker_list_preview += "\n- ..."
 
         await message.answer(
-            "📂 Transcript received!\n\n"
-            "I detected these speakers:\n"
+            "✅ Transcript ready\n\n"
+            f"Detected speakers: {len(speakers)}\n\n"
             f"{speaker_list_preview}\n\n"
-            "Select up to 2 speakers, then press ✅ Done.",
+            "Step 1 of 3: select 1 or 2 speakers, then tap ✅ Continue.",
             reply_markup=keyboard,
         )
         await message.answer(
-            "You can cancel anytime.",
-            reply_markup=cancel_keyboard()
+            "Use ❌ Cancel anytime to stop this process.",
+            reply_markup=cancel_keyboard(),
         )
 
     except Exception as exc:
         logger.exception("Failed to process uploaded transcript: %s", exc)
         delete_file(saved_path)
         await message.answer(
-            "Something went wrong while reading the transcript. "
-            "Please try another .txt file."
+            "⚠️ Something went wrong while reading the transcript.\n\n"
+            "Please try another Zoom `.txt` transcript file.",
+            parse_mode="Markdown",
         )
-
-
-async def cleanup_previous_flow(state: FSMContext) -> None:
-    data = await state.get_data()
-
-    file_path = data.get("file_path")
-    output_file_path = data.get("output_file_path")
-
-    if file_path:
-        delete_file(Path(file_path))
-
-    if output_file_path:
-        delete_file(Path(output_file_path))
-
-    await state.clear()

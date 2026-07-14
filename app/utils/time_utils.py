@@ -46,6 +46,16 @@ def time_to_seconds(value: str | None) -> int | None:
     return hours * 3600 + minutes * 60 + seconds
 
 
+def is_valid_time_range(start_time: str | None, end_time: str | None) -> bool:
+    start_seconds = time_to_seconds(start_time)
+    end_seconds = time_to_seconds(end_time)
+
+    if start_seconds is None or end_seconds is None:
+        return True
+
+    return start_seconds <= end_seconds
+
+
 def segment_overlaps_requested_range(
     segment_start: str | None,
     segment_end: str | None,
