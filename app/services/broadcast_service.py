@@ -15,7 +15,7 @@ async def broadcast_update(bot: Bot):
 
     text = (
         "📄 Zoom Transcript Extractor Bot\n\n"
-        "Upload a Zoom transcript .txt file and I can extract selected speakers, "
+        "Upload a Zoom transcript .txt or .vtt file and I can extract selected speakers, "
         "apply optional time filters, generate a clean transcript, and create an AI summary.\n\n"
         "Start by pressing 👉 /start"
     )

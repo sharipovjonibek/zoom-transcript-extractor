@@ -5,6 +5,7 @@ from app.utils.time_utils import (
     is_valid_time_format,
     is_valid_time_range,
     segment_overlaps_requested_range,
+    time_to_seconds,
 )
 
 
@@ -14,6 +15,8 @@ class TimeUtilsTests(unittest.TestCase):
         self.assertTrue(is_valid_time_format("25:00"))
         self.assertFalse(is_valid_time_format("1:99"))
         self.assertEqual(canonical_time("1:02"), "01:02")
+        self.assertEqual(time_to_seconds("1:02"), 62)
+        self.assertEqual(time_to_seconds("01:02:03"), 3723)
 
     def test_validates_time_range_order(self) -> None:
         self.assertTrue(is_valid_time_range("01:00", "01:00"))

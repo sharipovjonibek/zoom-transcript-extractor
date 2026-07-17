@@ -16,6 +16,13 @@ from app.services.user_service import track_user_request
 router = Router()
 logger = logging.getLogger(__name__)
 
+SUPPORTED_TRANSCRIPT_SUFFIXES = (".txt", ".vtt")
+SUPPORTED_FORMATS_TEXT = "`.txt` or `.vtt`"
+
+
+def is_supported_transcript_file(file_name: str) -> bool:
+    return file_name.lower().endswith(SUPPORTED_TRANSCRIPT_SUFFIXES)
+
 
 @router.message(F.document)
 async def handle_transcript_upload(message: Message, state: FSMContext) -> None:
@@ -30,14 +37,17 @@ async def handle_transcript_upload(message: Message, state: FSMContext) -> None:
     document = message.document
 
     if document is None:
-        await message.answer("Please upload a Zoom transcript file in `.txt` format.", parse_mode="Markdown")
+        await message.answer(
+            f"Please upload a Zoom transcript file in {SUPPORTED_FORMATS_TEXT} format.",
+            parse_mode="Markdown",
+        )
         return
 
     file_name = (document.file_name or "").lower()
-    if not file_name.endswith(".txt"):
+    if not is_supported_transcript_file(file_name):
         await message.answer(
-            "⚠️ I can only process Zoom transcript files in `.txt` format.\n\n"
-            "Please export or download the transcript as a `.txt` file and upload it here.",
+            f"⚠️ I can only process Zoom transcript files in {SUPPORTED_FORMATS_TEXT} format.\n\n"
+            "Please export or download the transcript in one of those formats and upload it here.",
             parse_mode="Markdown",
         )
         return
@@ -63,7 +73,8 @@ async def handle_transcript_upload(message: Message, state: FSMContext) -> None:
             delete_file(saved_path)
             await message.answer(
                 "⚠️ I could not detect speakers in this file.\n\n"
-                "Please upload a Zoom transcript `.txt` file that includes speaker names and timestamps.",
+                f"Please upload a Zoom transcript {SUPPORTED_FORMATS_TEXT} file "
+                "that includes speaker names and timestamps.",
                 parse_mode="Markdown",
             )
             return
@@ -103,6 +114,6 @@ async def handle_transcript_upload(message: Message, state: FSMContext) -> None:
         delete_file(saved_path)
         await message.answer(
             "⚠️ Something went wrong while reading the transcript.\n\n"
-            "Please try another Zoom `.txt` transcript file.",
+            f"Please try another Zoom {SUPPORTED_FORMATS_TEXT} transcript file.",
             parse_mode="Markdown",
         )

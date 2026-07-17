@@ -15,7 +15,7 @@ router = Router()
 
 WELCOME_TEXT = (
     "🚀 Zoom Transcript Extractor\n\n"
-    "Send a Zoom transcript `.txt` file and I will help you turn it into a clean, focused transcript.\n\n"
+    "Send a Zoom transcript `.txt` or `.vtt` file and I will help you turn it into a clean, focused transcript.\n\n"
     "What I can do:\n"
     "👤 Extract one or two selected speakers\n"
     "⏱ Filter by meeting time\n"
@@ -27,7 +27,7 @@ WELCOME_TEXT = (
 HELP_TEXT = (
     "ℹ️ How to use the bot\n\n"
     "1. Tap 📄 New Transcript.\n"
-    "2. Upload a Zoom `.txt` transcript file.\n"
+    "2. Upload a Zoom `.txt` or `.vtt` transcript file.\n"
     "3. Select up to 2 speakers.\n"
     "4. Add a start/end time or tap ⏭ Skip.\n"
     "5. Download the cleaned transcript.\n"
@@ -63,7 +63,7 @@ async def transcript_extraction_entry(message: Message, state: FSMContext) -> No
     await state.clear()
     await message.answer(
         "📄 New transcript\n\n"
-        "Please upload your Zoom transcript as a `.txt` file.\n\n"
+        "Please upload your Zoom transcript as a `.txt` or `.vtt` file.\n\n"
         "I will detect the speakers automatically and guide you through the next steps.",
         reply_markup=get_main_menu_keyboard(),
         parse_mode="Markdown",
@@ -82,7 +82,7 @@ async def cancel_without_active_flow(message: Message) -> None:
 @router.message(StateFilter(None), F.text)
 async def handle_idle_text(message: Message) -> None:
     await message.answer(
-        "Please tap 📄 New Transcript and upload a Zoom `.txt` transcript file.\n\n"
+        "Please tap 📄 New Transcript and upload a Zoom `.txt` or `.vtt` transcript file.\n\n"
         "For guidance, tap ℹ️ Help.",
         reply_markup=get_main_menu_keyboard(),
         parse_mode="Markdown",
