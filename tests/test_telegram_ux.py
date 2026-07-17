@@ -1,7 +1,6 @@
 import unittest
 
 from app.handlers.extract_flow import is_cancel_text, is_skip_text
-from app.handlers.upload import is_supported_transcript_file
 from app.keyboards.cancel_keyboard import CANCEL_BUTTON, SKIP_BUTTON, cancel_keyboard, time_filter_keyboard
 from app.keyboards.main_menu_keyboard import HELP_BUTTON, NEW_TRANSCRIPT_BUTTON, get_main_menu_keyboard
 from app.keyboards.summary_keyboard import build_summary_keyboard
@@ -38,12 +37,6 @@ class TelegramUxTests(unittest.TestCase):
         self.assertTrue(is_skip_text("SKIP"))
         self.assertTrue(is_cancel_text(CANCEL_BUTTON))
         self.assertFalse(is_skip_text(CANCEL_BUTTON))
-
-    def test_supported_upload_extensions_include_txt_and_vtt(self) -> None:
-        self.assertTrue(is_supported_transcript_file("meeting.txt"))
-        self.assertTrue(is_supported_transcript_file("meeting.vtt"))
-        self.assertTrue(is_supported_transcript_file("MEETING.VTT"))
-        self.assertFalse(is_supported_transcript_file("meeting.pdf"))
 
 
 if __name__ == "__main__":

@@ -38,8 +38,8 @@ def time_to_seconds(value: str | None) -> int | None:
     parts = value.split(":")
 
     if len(parts) == 2:
-        minutes, seconds = map(int, parts)
-        hours = 0
+        hours, minutes = map(int, parts)
+        seconds = 0
     else:
         hours, minutes, seconds = map(int, parts)
 

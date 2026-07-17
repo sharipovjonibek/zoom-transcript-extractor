@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-import html
 import re
 
 TIME_PATTERN = r"\d{1,2}:\d{2}(?::\d{2})?"
-VTT_TIMESTAMP_PATTERN = r"(?:\d{1,3}:)?\d{2}:\d{2}(?:\.\d{1,3})?"
 
 
 @dataclass
@@ -50,17 +48,6 @@ TIME_SPEAKER_HEADER = re.compile(
     rf"^\[?(?P<start>{TIME_PATTERN})\]?\s+(?P<speaker>.+?)$"
 )
 
-VTT_CUE_TIMING = re.compile(
-    rf"^(?P<start>{VTT_TIMESTAMP_PATTERN})\s+-->\s+"
-    rf"(?P<end>{VTT_TIMESTAMP_PATTERN})(?:\s+.*)?$"
-)
-
-VTT_VOICE_TAG = re.compile(r"<v\s+(?P<speaker>[^>]+)>(?P<text>.*)", re.IGNORECASE)
-
-SPEAKER_TEXT = re.compile(
-    r"^(?P<speaker>[^:]{1,120}):\s*(?P<text>.*)$"
-)
-
 
 def normalize_speaker_name(name: str) -> str:
     name = name.replace("\t", " ")
@@ -103,10 +90,6 @@ def looks_like_speaker_name(name: str) -> bool:
 
 def parse_zoom_transcript(raw_text: str) -> list[TranscriptSegment]:
     text = raw_text.replace("\ufeff", "")
-
-    if looks_like_webvtt(text):
-        return parse_webvtt_transcript(text)
-
     lines = text.splitlines()
 
     segments: list[TranscriptSegment] = []
@@ -198,127 +181,6 @@ def parse_zoom_transcript(raw_text: str) -> list[TranscriptSegment]:
         segments.append(current)
 
     return merge_duplicate_adjacent_segments(segments)
-
-
-def looks_like_webvtt(raw_text: str) -> bool:
-    lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
-    if not lines:
-        return False
-
-    if lines[0].startswith("WEBVTT"):
-        return True
-
-    return any(VTT_CUE_TIMING.match(line) for line in lines[:20])
-
-
-def parse_webvtt_transcript(raw_text: str) -> list[TranscriptSegment]:
-    text = raw_text.replace("\ufeff", "")
-    blocks = split_vtt_blocks(text)
-    segments: list[TranscriptSegment] = []
-
-    for block in blocks:
-        if not block:
-            continue
-
-        cue_index = next(
-            (index for index, line in enumerate(block) if VTT_CUE_TIMING.match(line.strip())),
-            None,
-        )
-        if cue_index is None:
-            continue
-
-        first_line = block[0].strip()
-        if first_line.startswith("NOTE") or first_line in {"STYLE", "REGION"}:
-            continue
-
-        timing_match = VTT_CUE_TIMING.match(block[cue_index].strip())
-        if timing_match is None:
-            continue
-
-        speaker, cue_text = extract_webvtt_speaker_and_text(block[cue_index + 1:])
-        if not cue_text:
-            continue
-
-        segments.append(
-            TranscriptSegment(
-                speaker=speaker,
-                text=cue_text,
-                start_time=normalize_webvtt_timestamp(timing_match.group("start")),
-                end_time=normalize_webvtt_timestamp(timing_match.group("end")),
-            )
-        )
-
-    return merge_duplicate_adjacent_segments(segments)
-
-
-def split_vtt_blocks(raw_text: str) -> list[list[str]]:
-    blocks: list[list[str]] = []
-    current: list[str] = []
-
-    for raw_line in raw_text.splitlines():
-        line = raw_line.strip()
-        if not line:
-            if current:
-                blocks.append(current)
-                current = []
-            continue
-
-        current.append(line)
-
-    if current:
-        blocks.append(current)
-
-    return blocks
-
-
-def extract_webvtt_speaker_and_text(lines: list[str]) -> tuple[str, str]:
-    speaker: str | None = None
-    cleaned_lines: list[str] = []
-
-    for line in lines:
-        voice_match = VTT_VOICE_TAG.search(line)
-        if voice_match:
-            possible_speaker = normalize_speaker_name(voice_match.group("speaker"))
-            if speaker is None and looks_like_speaker_name(possible_speaker):
-                speaker = possible_speaker
-            line = voice_match.group("text")
-
-        cleaned_line = clean_webvtt_text(line)
-        if cleaned_line:
-            cleaned_lines.append(cleaned_line)
-
-    text = " ".join(cleaned_lines).strip()
-    if not text:
-        return "Unknown Speaker", ""
-
-    if speaker is None:
-        speaker_match = SPEAKER_TEXT.match(text)
-        if speaker_match:
-            possible_speaker = normalize_speaker_name(speaker_match.group("speaker"))
-            if looks_like_speaker_name(possible_speaker):
-                speaker = possible_speaker
-                text = speaker_match.group("text").strip()
-
-    return speaker or "Unknown Speaker", text
-
-
-def clean_webvtt_text(text: str) -> str:
-    text = re.sub(r"<[^>]+>", "", text)
-    text = html.unescape(text)
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-
-def normalize_webvtt_timestamp(value: str) -> str:
-    base_value = value.split(".", 1)[0]
-    parts = [int(part) for part in base_value.split(":")]
-
-    if len(parts) == 2:
-        minutes, seconds = parts
-        return f"00:{minutes:02d}:{seconds:02d}"
-
-    hours, minutes, seconds = parts
-    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
 def merge_duplicate_adjacent_segments(

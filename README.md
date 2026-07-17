@@ -1,14 +1,12 @@
 # Meeting Assistant Bot
 
-Current version: `v1.1.0`
-
 AI-powered Telegram bot for cleaning Zoom meeting transcripts, extracting selected speaker conversations, and generating concise meeting summaries.
 
-The bot helps teams review meetings faster by turning raw Zoom `.txt` or `.vtt` transcripts into focused, readable notes with optional Gemini-powered summaries.
+The bot helps teams review meetings faster by turning raw Zoom `.txt` transcripts into focused, readable notes with optional Gemini-powered summaries.
 
 ## Features
 
-- Upload Zoom `.txt` or `.vtt` transcript files through Telegram
+- Upload Zoom `.txt` transcript files through Telegram
 - Detect speakers automatically
 - Select one or two speakers for extraction
 - Filter transcript content by optional start and end time
@@ -22,9 +20,9 @@ The bot helps teams review meetings faster by turning raw Zoom `.txt` or `.vtt` 
 ## Workflow
 
 1. Start the bot with `/start`.
-2. Upload a Zoom transcript `.txt` or `.vtt` file.
+2. Upload a Zoom transcript `.txt` file.
 3. Choose the speaker or speakers you want to extract.
-4. Optionally provide a start and end time using `MM:SS` or `HH:MM:SS`.
+4. Optionally provide a start and end time.
 5. Receive a cleaned transcript file.
 6. Optionally generate an AI summary.
 

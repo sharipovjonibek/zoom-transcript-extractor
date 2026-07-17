@@ -75,7 +75,7 @@ async def cancel_flow(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer(
         "❌ Current flow cancelled.\n\n"
-        "Upload another transcript file whenever you're ready to start again.",
+        "Send another .txt file whenever you're ready to process a new transcript.",
         reply_markup=get_main_menu_keyboard(),
     )
 
@@ -87,7 +87,7 @@ async def cancel_via_button(message: Message, state: FSMContext) -> None:
 
     await message.answer(
         "❌ Current process cancelled.\n\n"
-        "Upload another transcript file whenever you're ready to start again.",
+        "Send another .txt file whenever you're ready to process a new transcript.",
         reply_markup=get_main_menu_keyboard(),
     )
 
@@ -209,7 +209,7 @@ async def receive_start_time(message: Message, state: FSMContext) -> None:
         await state.clear()
         await message.answer(
             "❌ Current process cancelled.\n\n"
-            "Upload another transcript file whenever you're ready to start again.",
+            "Send another .txt file whenever you're ready to process a new transcript.",
             reply_markup=get_main_menu_keyboard(),
         )
         return
@@ -220,7 +220,7 @@ async def receive_start_time(message: Message, state: FSMContext) -> None:
         if not is_valid_time_format(raw_value):
             await message.answer(
                 "⚠️ Invalid START time.\n\n"
-                "Use MM:SS or HH:MM:SS, for example 12:30 or 01:13:45.\n"
+                "Use HH:MM or HH:MM:SS, for example 12:30 or 01:13:45.\n"
                 "You can also tap ⏭ Skip.",
                 reply_markup=time_filter_keyboard(),
             )
@@ -244,7 +244,7 @@ async def receive_end_time_and_process(message: Message, state: FSMContext) -> N
         await state.clear()
         await message.answer(
             "❌ Current process cancelled.\n\n"
-            "Upload another transcript file whenever you're ready to start again.",
+            "Send another .txt file whenever you're ready to process a new transcript.",
             reply_markup=get_main_menu_keyboard(),
         )
         return
@@ -255,7 +255,7 @@ async def receive_end_time_and_process(message: Message, state: FSMContext) -> N
         if not is_valid_time_format(raw_value):
             await message.answer(
                 "⚠️ Invalid END time.\n\n"
-                "Use MM:SS or HH:MM:SS, for example 12:45 or 01:25:00.\n"
+                "Use HH:MM or HH:MM:SS, for example 12:45 or 01:25:00.\n"
                 "You can also tap ⏭ Skip.",
                 reply_markup=time_filter_keyboard(),
             )
